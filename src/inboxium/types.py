@@ -1,5 +1,7 @@
 """Typing."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 
@@ -12,6 +14,7 @@ class InboxMessage:
     subject: str
     text: str
     raw: str
+    real_sender: str
 
 
 @dataclass

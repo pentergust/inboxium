@@ -8,9 +8,10 @@ from typing import TYPE_CHECKING
 from aiosmtpd.controller import Controller
 from loguru import logger
 
-from .types import InboxMessage, Handler
+from .types import Handler, InboxMessage
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from email.message import Message
 
     from aiosmtpd.smtp import SMTP, Envelope, Session
@@ -34,17 +35,24 @@ def _get_body(msg: Message) -> str:
     return ""
 
 
-def _prepare_message(envelope: Envelope) -> InboxMessage:
-    """Prepare message."""
-    logger.debug("Prepairing msg")
+def _get_real_sender(host_name: str, peer: tuple[str]) -> None:
+    if peer:
+        return f"{host_name} (http://{peer[0]}:{peer[1]})"
+    return ""
 
-    msg = BytesParser(policy=policy.default).parsebytes(envelope.content)
+
+def _prepare_message(envelope: Envelope, session: Session) -> InboxMessage:
+    """Prepare message."""
+    msg = BytesParser(policy=policy.default).parsebytes(envelope.content)  # type: ignore  # noqa: PGH003
+    real_sender = _get_real_sender(session.host_name, session.peer)
+
     return InboxMessage(
         by=envelope.rcpt_tos,
         sender=envelope.mail_from or "",
         subject=str(make_header(decode_header(msg.get("Subject", "")))),
         text=_get_body(msg),
         raw=msg.as_string(),
+        real_sender=real_sender,
     )
 
 
@@ -52,40 +60,43 @@ class Inbox:
     """SMTP Inbox handler."""
 
     def __init__(self, address: str, port: int | str) -> None:
+        """Init an inboxium email-server."""
         self.address = address
         self.port = int(port)
 
-        self.handlers = []
+        self.handlers: list[Handler] = []
 
-    async def handle_RCPT(
+    async def handle_RCPT(  # noqa: N802
         self,
-        server: SMTP,
-        session: Session,
+        _server: SMTP,
+        _session: Session,
         envelope: Envelope,
         address: str,
-        rcpt_options,
+        _rcpt_options: list[str],
     ) -> str:
         """Handle RCPT command."""
         envelope.rcpt_tos.append(address)
         return "250 OK"
 
-    async def handle_DATA(self, server: SMTP, session: Session, envelope: Envelope):
+    async def handle_DATA(  # noqa: N802
+        self,
+        _server: SMTP,
+        session: Session,
+        envelope: Envelope,
+    ) -> str:
         """Handle DATA command."""
         try:
-            msg = _prepare_message(envelope)
+            msg = _prepare_message(envelope, session)
 
             for h in self.handlers:
-                if not any((h.by, h.sender, h.subject, h.text)):
-                    await h.func(msg)
-                    if h.block:
-                        break
-
-                elif any((
-                    h.by == msg.by,
-                    h.sender == msg.sender,
-                    h.subject == msg.subject,
-                    h.text == msg.text,
-                )):
+                if not any((h.by, h.sender, h.subject, h.text)) or any(
+                    (
+                        h.by == msg.by,
+                        h.sender == msg.sender,
+                        h.subject == msg.subject,
+                        h.text == msg.text,
+                    ),
+                ):
                     await h.func(msg)
                     if h.block:
                         break
@@ -102,10 +113,11 @@ class Inbox:
         sender: str | None = None,
         subject: str | None = None,
         text: str | None = None,
-        block: bool | None = True,
-    ):
+        block: bool | None = True,  # noqa: FBT001, FBT002
+    ) -> Callable[[Callable[[Message], None]], None]:
         """Set handler for incoming messages."""
-        def decorator(func) -> func | None:
+
+        def decorator(func: Callable[[Message], None]) -> None:
             self.handlers.append(Handler(func, by, sender, subject, text, block))
 
         return decorator
@@ -120,6 +132,7 @@ class Inbox:
         )
         try:
             controller.start()
-            controller._thread.join()  # noqa: SLF001
+            if controller._thread:  # noqa: SLF001
+                controller._thread.join()  # noqa: SLF001
         finally:
             controller.stop()

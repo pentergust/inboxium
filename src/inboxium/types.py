@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-@dataclass
+@dataclass(slots=True, frozen=True)
 class InboxMessage:
     """Message class."""
 
@@ -17,7 +17,7 @@ class InboxMessage:
     real_sender: str
 
 
-@dataclass
+@dataclass(slots=True, frozen=True)
 class Handler:
     """Обработчик."""
 

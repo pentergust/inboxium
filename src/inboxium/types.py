@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(slots=True, frozen=True)
@@ -21,7 +22,7 @@ class InboxMessage:
 class Handler:
     """Обработчик."""
 
-    func: any
+    func: Any
     by: str | None = None
     sender: str | None = None
     subject: str | None = None

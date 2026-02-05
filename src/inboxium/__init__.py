@@ -2,4 +2,4 @@
 
 from .inboxium import Inbox
 
-__all__ = ("Inbox", )
+__all__ = ("Inbox",)

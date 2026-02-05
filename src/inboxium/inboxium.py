@@ -1,3 +1,5 @@
+"""Main file of project."""
+
 from __future__ import annotations
 
 from email import policy
@@ -35,7 +37,7 @@ def _get_body(msg: Message) -> str:
     return ""
 
 
-def _get_real_sender(host_name: str, peer: tuple[str]) -> None:
+def _get_real_sender(host_name: str, peer: tuple[str]) -> str:
     if peer:
         return f"{host_name} (http://{peer[0]}:{peer[1]})"
     return ""
@@ -125,14 +127,10 @@ class Inbox:
     def serve(self) -> None:
         """Run the SMTP server."""
         logger.info("Starting SMTP server at {}:{}", self.address, self.port)
-        controller = Controller(
-            self,
-            hostname=self.address,
-            port=self.port,
-        )
+        controller = Controller(self, hostname=self.address, port=self.port)
         try:
             controller.start()
-            if controller._thread:  # noqa: SLF001
+            if controller._thread is not None:  # noqa: SLF001
                 controller._thread.join()  # noqa: SLF001
         finally:
             controller.stop()

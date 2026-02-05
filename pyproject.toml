@@ -41,3 +41,9 @@ ignore = [
     # Работа с датой
     "DTZ005",
 ]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.408",
+    "ruff>=0.14.14",
+]
